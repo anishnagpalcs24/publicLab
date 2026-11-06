@@ -1,14 +1,61 @@
-
 import * as labService from "../services/lab.service.js";
 
 // Submit a laboratory application
 export async function createLab(req, res, next) {
     try {
-        const lab = await labService.createLab(req.body);
+        const result = await labService.createLab(req.body, req.user);
 
         return res.status(201).json({
             success: true,
-            message: "Laboratory application submitted successfully",
+            message: result.message || "Laboratory application submitted successfully",
+            data: result.lab ? { ...result.lab, owner: result.owner } : result,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Get the authenticated owner's laboratory profile
+export async function getMyLab(req, res, next) {
+    try {
+        const lab = await labService.getMyLab(req.user);
+
+        return res.status(200).json({
+            success: true,
+            message: "Laboratory profile retrieved successfully",
+            data: lab,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Get laboratory application status
+export async function getApplicationStatus(req, res, next) {
+    try {
+        const status = await labService.getApplicationStatus(req.user);
+
+        return res.status(200).json({
+            success: true,
+            message: "Laboratory application status retrieved successfully",
+            data: status,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Resubmit a rejected laboratory application
+export async function resubmitApplication(req, res, next) {
+    try {
+        const lab = await labService.resubmitApplication({
+            user: req.user,
+            updates: req.body,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Laboratory application resubmitted successfully and is pending review",
             data: lab,
         });
     } catch (error) {
@@ -127,3 +174,98 @@ export async function suspendLab(req, res, next) {
         next(error);
     }
 }
+
+// Get operational dashboard for authenticated laboratory
+export async function getLabDashboard(req, res, next) {
+    try {
+        const dashboard = await labService.getLabDashboard(req.user);
+
+        return res.status(200).json({
+            success: true,
+            message: "Laboratory dashboard retrieved successfully",
+            data: dashboard,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Calculate clinical metric without saving (interactive calculator)
+export async function calculateMetric(req, res, next) {
+    try {
+        const result = labService.calculateClinicalMetric({
+            type: req.body.type || req.params.type,
+            inputs: req.body.inputs || req.body,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Clinical calculation completed successfully",
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Save a calculation record
+export async function saveCalculation(req, res, next) {
+    try {
+        const calculation = await labService.saveCalculation({
+            user: req.user,
+            calculatorType: req.body.calculatorType || req.body.type,
+            inputs: req.body.inputs || req.body,
+            patientId: req.body.patientId,
+            clinicalNotes: req.body.clinicalNotes || req.body.notes,
+        });
+
+        return res.status(201).json({
+            success: true,
+            message: "Clinical calculation saved successfully",
+            data: calculation,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// List saved calculations
+export async function getCalculations(req, res, next) {
+    try {
+        const result = await labService.getCalculations({
+            user: req.user,
+            type: req.query.type,
+            patientId: req.query.patientId,
+            limit: req.query.limit,
+            offset: req.query.offset,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Clinical calculations retrieved successfully",
+            data: result.calculations,
+            pagination: result.pagination,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Get single calculation by ID
+export async function getCalculationById(req, res, next) {
+    try {
+        const calculation = await labService.getCalculationById({
+            calculationId: req.params.calculationId || req.params.id,
+            user: req.user,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Clinical calculation retrieved successfully",
+            data: calculation,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+

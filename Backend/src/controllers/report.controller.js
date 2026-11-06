@@ -1,5 +1,3 @@
-
-
 import * as reportService from "../services/report.service.js";
 
 // Create a report
@@ -10,11 +8,14 @@ export async function createReport(req, res, next) {
             orderId: req.body.orderId,
             patientId: req.body.patientId,
             file: req.file,
+            fileData: req.body.fileData,
+            filename: req.body.filename,
+            mimeType: req.body.mimeType,
         });
 
         return res.status(201).json({
             success: true,
-            message: "Report created successfully",
+            message: "Report created successfully as draft",
             data: report,
         });
     } catch (error) {
@@ -107,12 +108,15 @@ export async function correctReport(req, res, next) {
             reportId: req.params.reportId,
             user: req.user,
             file: req.file,
+            fileData: req.body.fileData,
+            filename: req.body.filename,
+            mimeType: req.body.mimeType,
             reason: req.body.reason,
         });
 
         return res.status(200).json({
             success: true,
-            message: "Corrected report uploaded successfully",
+            message: "Corrected report version created successfully",
             data: report,
         });
     } catch (error) {

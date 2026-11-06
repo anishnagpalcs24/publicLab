@@ -1,5 +1,3 @@
-
-
 import * as orderService from "../services/order.service.js";
 
 // Create an order
@@ -9,6 +7,8 @@ export async function createOrder(req, res, next) {
             user: req.user,
             patientId: req.body.patientId,
             items: req.body.items,
+            notes: req.body.notes,
+            sampleCollectedAt: req.body.sampleCollectedAt || req.body.sample_collected_at,
         });
 
         return res.status(201).json({
@@ -46,6 +46,8 @@ export async function getLabOrders(req, res, next) {
             user: req.user,
             status: req.query.status,
             paymentStatus: req.query.paymentStatus,
+            startDate: req.query.startDate,
+            endDate: req.query.endDate,
             limit: req.query.limit,
             offset: req.query.offset,
         });
@@ -88,6 +90,8 @@ export async function updateOrderStatus(req, res, next) {
         const order = await orderService.updateOrderStatus({
             orderId: req.params.orderId,
             status: req.body.status,
+            notes: req.body.notes,
+            sampleCollectedAt: req.body.sampleCollectedAt || req.body.sample_collected_at,
             user: req.user,
         });
 

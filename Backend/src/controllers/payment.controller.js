@@ -1,12 +1,10 @@
-
-
 import * as paymentService from "../services/payment.service.js";
 
 // Create a payment for an order
 export async function createOrderPayment(req, res, next) {
     try {
         const payment = await paymentService.createOrderPayment({
-            orderId: req.body.orderId,
+            orderId: req.params.orderId || req.body?.orderId,
             user: req.user,
             idempotencyKey: req.get("Idempotency-Key"),
         });
@@ -25,7 +23,7 @@ export async function createOrderPayment(req, res, next) {
 export async function createSubscriptionPayment(req, res, next) {
     try {
         const payment = await paymentService.createSubscriptionPayment({
-            subscriptionId: req.body.subscriptionId,
+            subscriptionId: req.params.subscriptionId || req.body?.subscriptionId,
             user: req.user,
             idempotencyKey: req.get("Idempotency-Key"),
         });
@@ -88,6 +86,27 @@ export async function getSubscriptionPayments(req, res, next) {
             success: true,
             message: "Subscription payment history retrieved successfully",
             data: payments,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Verify payment server-side with HMAC signature
+export async function verifyPayment(req, res, next) {
+    try {
+        const result = await paymentService.verifyPayment({
+            paymentId: req.body.paymentId,
+            providerOrderId: req.body.providerOrderId,
+            providerPaymentId: req.body.providerPaymentId,
+            signature: req.body.signature,
+            user: req.user,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Payment verified and processed successfully",
+            data: result,
         });
     } catch (error) {
         next(error);

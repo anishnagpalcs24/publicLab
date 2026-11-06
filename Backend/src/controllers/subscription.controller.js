@@ -110,3 +110,29 @@ export async function cancelSubscription(req, res, next) {
         next(error);
     }
 }
+
+// Check paid feature access for the authenticated laboratory
+export async function checkPaidFeatureAccess(req, res, next) {
+    try {
+        const access = await subscriptionService.verifySubscriptionAccess({
+            labId: req.user.labId,
+        });
+
+        if (!access.hasAccess) {
+            return res.status(403).json({
+                success: false,
+                message: access.reason,
+                code: "SUBSCRIPTION_REQUIRED",
+                subscriptionStatus: access.status,
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Active subscription verified. Paid feature access granted.",
+            data: access.subscription,
+        });
+    } catch (error) {
+        next(error);
+    }
+}

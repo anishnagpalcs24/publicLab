@@ -1,10 +1,50 @@
-
 import * as adminService from "../services/admin.service.js";
+
+const COOKIE_NAME = "refreshToken";
+
+function getCookieOptions() {
+    const isProd = process.env.NODE_ENV === "production";
+    return {
+        httpOnly: true,
+        secure: isProd,
+        sameSite: isProd ? "strict" : "lax",
+        path: "/api/v1/auth",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+    };
+}
+
+// Fixed Administrator Login
+export async function adminLogin(req, res, next) {
+    try {
+        const ipAddress = req.ip || req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+        const userAgent = req.headers["user-agent"];
+
+        const result = await adminService.adminLogin({
+            username: req.body.username || req.body.email,
+            password: req.body.password,
+            ipAddress,
+            userAgent,
+        });
+
+        res.cookie(COOKIE_NAME, result.refreshToken, getCookieOptions());
+
+        return res.status(200).json({
+            success: true,
+            message: "Administrator logged in successfully",
+            data: {
+                user: result.user,
+                accessToken: result.accessToken,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+}
 
 // Get admin dashboard statistics
 export async function getDashboard(req, res, next) {
     try {
-        const dashboard = await adminService.getDashboard();
+        const dashboard = await adminService.getDashboard({ user: req.user });
 
         return res.status(200).json({
             success: true,
@@ -20,6 +60,7 @@ export async function getDashboard(req, res, next) {
 export async function getUsers(req, res, next) {
     try {
         const result = await adminService.getUsers({
+            user: req.user,
             search: req.query.search,
             status: req.query.status,
             limit: req.query.limit,
@@ -61,6 +102,7 @@ export async function updateUserStatus(req, res, next) {
 export async function getLabApplications(req, res, next) {
     try {
         const result = await adminService.getLabApplications({
+            user: req.user,
             status: req.query.status,
             search: req.query.search,
             limit: req.query.limit,
@@ -121,6 +163,7 @@ export async function suspendLab(req, res, next) {
 export async function getCallbacks(req, res, next) {
     try {
         const result = await adminService.getCallbacks({
+            user: req.user,
             status: req.query.status,
             limit: req.query.limit,
             offset: req.query.offset,
@@ -141,6 +184,7 @@ export async function getCallbacks(req, res, next) {
 export async function getAuditLogs(req, res, next) {
     try {
         const result = await adminService.getAuditLogs({
+            user: req.user,
             action: req.query.action,
             limit: req.query.limit,
             offset: req.query.offset,
@@ -156,4 +200,3 @@ export async function getAuditLogs(req, res, next) {
         next(error);
     }
 }
-

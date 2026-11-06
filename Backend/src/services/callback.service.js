@@ -1,5 +1,9 @@
 
 import { pool } from "../config/db.js";
+import {
+    notifyCallbackSubmitted,
+    notifyCallbackStatusUpdated,
+} from "./email.service.js";
 
 function createError(message, statusCode) {
     const error = new Error(message);
@@ -79,7 +83,21 @@ export async function createCallback({
         ]
     );
 
-    return result.rows[0];
+    const created = result.rows[0];
+
+    // Safely trigger notifications to admin and user (non-blocking)
+    (async () => {
+        try {
+            let targetLabName = null;
+            if (labId) {
+                const labRes = await pool.query(`SELECT name FROM labs WHERE id = $1`, [labId]);
+                if (labRes.rows.length > 0) targetLabName = labRes.rows[0].name;
+            }
+            await notifyCallbackSubmitted({ callback: created, labName: targetLabName });
+        } catch (_) {}
+    })();
+
+    return created;
 }
 
 // Get a callback request
@@ -182,10 +200,10 @@ export async function updateCallbackStatus({
 
     const result = await pool.query(
         `UPDATE callbacks
-         SET callback_status = $1,
+         SET callback_status = $1::varchar,
              assigned_to = $2,
              contacted_at = CASE
-                 WHEN $1 = 'contacted'
+                 WHEN $1::varchar = 'contacted'
                  THEN COALESCE(contacted_at, CURRENT_TIMESTAMP)
                  ELSE contacted_at
              END,
@@ -194,14 +212,22 @@ export async function updateCallbackStatus({
          RETURNING id, name, phone, email, lab_id, message,
                    callback_status, assigned_to, requested_at,
                    contacted_at, updated_at`,
-        [status, assignedTo, callbackId]
+        [status, assignedTo !== null ? Number(assignedTo) : null, callbackId]
     );
 
     if (result.rows.length === 0) {
         throw createError("Callback request not found", 404);
     }
 
-    return result.rows[0];
+    const updated = result.rows[0];
+
+    // Trigger notification to user and admin
+    notifyCallbackStatusUpdated({
+        callback: updated,
+        updatedBy: user?.role === "admin" ? "PublicLab Administrator" : "Staff",
+    }).catch(() => {});
+
+    return updated;
 }
 
 // Delete a callback request (admin only)
