@@ -1,0 +1,123 @@
+@use 'sass:color';
+@use '../../../styles/abstracts/variables' as *;
+@use '../../../styles/abstracts/mixins' as *;
+
+.pl-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: $space-2;
+  font-family: $font-family-base;
+  font-weight: $font-weight-medium;
+  border-radius: $radius-md;
+  border: 1px solid transparent;
+  transition: all $transition-base;
+  white-space: nowrap;
+  user-select: none;
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
+  // Sizes
+  &--sm {
+    padding: $space-1 $space-3;
+    font-size: $font-size-xs;
+    height: 32px;
+  }
+
+  &--md {
+    padding: $space-2 $space-4;
+    font-size: $font-size-sm;
+    height: 40px;
+  }
+
+  &--lg {
+    padding: $space-3 $space-6;
+    font-size: $font-size-base;
+    height: 48px;
+  }
+
+  // Variants
+  &--primary {
+    background-color: $color-primary;
+    color: $color-text-inverse;
+
+    &:hover:not(:disabled) {
+      background-color: $color-primary-hover;
+      transform: translateY(-1px);
+      box-shadow: $shadow-sm;
+    }
+
+    &:focus-visible {
+      @include focus-ring;
+    }
+  }
+
+  &--secondary {
+    background-color: $color-secondary;
+    color: $color-text-inverse;
+
+    &:hover:not(:disabled) {
+      background-color: $color-secondary-hover;
+      transform: translateY(-1px);
+      box-shadow: $shadow-sm;
+    }
+  }
+
+  &--outline {
+    background-color: transparent;
+    border-color: $color-border;
+    color: $color-text;
+
+    &:hover:not(:disabled) {
+      background-color: $color-surface-hover;
+      border-color: $color-border-dark;
+    }
+  }
+
+  &--ghost {
+    background-color: transparent;
+    color: $color-text-secondary;
+
+    &:hover:not(:disabled) {
+      background-color: $color-surface-hover;
+      color: $color-text;
+    }
+  }
+
+  &--danger {
+    background-color: $color-danger;
+    color: $color-text-inverse;
+
+    &:hover:not(:disabled) {
+      background-color: color.adjust($color-danger, $lightness: -8%);
+    }
+  }
+
+  &--full {
+    width: 100%;
+  }
+
+  &__icon {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  &__spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    border-top-color: currentColor;
+    animation: spin 0.7s linear infinite;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

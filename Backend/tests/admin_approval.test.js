@@ -107,7 +107,32 @@ test("Admin Authentication & Laboratory Approval Suite", async () => {
         assert.strictEqual(labRegRes.status, 201, "Lab registration should succeed");
         const labRegData = await labRegRes.json();
         const pendingLabId = labRegData.data.id;
-        assert.strictEqual(labRegData.data.approval_status, "pending");
+        assert.strictEqual(labRegData.data.approval_status, "unverified", "Unverified lab must start as unverified");
+        assert.strictEqual(
+            labRegData.message,
+            "Registration details received. Please verify your email to submit your application for administrator review."
+        );
+
+        // Before OTP verification, unverified applications cannot be approved by admin (must reject with 400)
+        const prematureApproveRes = await fetch(`${baseUrl}/admin/labs/applications/${pendingLabId}/review`, {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${adminToken}`,
+            },
+            body: JSON.stringify({ status: "approved" }),
+        });
+        assert.strictEqual(prematureApproveRes.status, 400, "Unverified lab application cannot be approved");
+        const prematureData = await prematureApproveRes.json();
+        assert.match(prematureData.message, /unverified laboratory application/i);
+
+        // Before OTP verification, unverified application does NOT appear in pending applications queue
+        const preOtpPendingRes = await fetch(`${baseUrl}/admin/labs/applications?status=pending`, {
+            headers: { Authorization: `Bearer ${adminToken}` },
+        });
+        const preOtpPendingData = await preOtpPendingRes.json();
+        const foundPreOtp = preOtpPendingData.data.find((l) => String(l.id) === String(pendingLabId));
+        assert.strictEqual(foundPreOtp, undefined, "Unverified lab must not appear in pending applications queue");
 
         // Retrieve OTP from DB to verify owner account
         const otpRow = await pool.query(
@@ -131,6 +156,10 @@ test("Admin Authentication & Laboratory Approval Suite", async () => {
         assert.strictEqual(verifyRes.status, 200);
         const verifyData = await verifyRes.json();
         const labOwnerToken = verifyData.data.accessToken;
+
+        // Verify that after OTP verification, the lab status transitioned to 'pending'
+        const labStatusCheck = await pool.query("SELECT approval_status FROM labs WHERE id = $1", [pendingLabId]);
+        assert.strictEqual(labStatusCheck.rows[0].approval_status, "pending", "Status must become pending after OTP");
 
         // Unauthenticated access to admin endpoints must be rejected (401)
         const unauthRes = await fetch(`${baseUrl}/admin/labs/applications`);

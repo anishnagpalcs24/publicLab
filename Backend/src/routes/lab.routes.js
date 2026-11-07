@@ -56,5 +56,6 @@ router.get("/:labId", labController.getLabById);
 router.get("/admin/applications", authenticate, authorize("admin"), labController.getLabApplications);
 router.patch("/admin/applications/:labId/review", authenticate, authorize("admin"), labController.reviewLabApplication);
 router.patch("/admin/:labId/suspend", authenticate, authorize("admin"), labController.suspendLab);
+router.delete("/admin/:labId", authenticate, authorize("admin"), labController.deleteLab);
 
 export default router;

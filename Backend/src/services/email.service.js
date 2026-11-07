@@ -3,29 +3,65 @@ import nodemailer from "nodemailer";
 
 let transporter = null;
 
-function getTransporter() {
+export function getTransporter() {
     if (!transporter) {
         const rawPass = process.env.EMAIL_PASS?.trim();
         const cleanPass = rawPass ? rawPass.replace(/\s+/g, "") : null;
         const isAppPassword = Boolean(cleanPass);
 
-        transporter = nodemailer.createTransport({
-            service: "gmail",
-            auth: isAppPassword
-                ? {
+        // 1. Custom SMTP Server configuration
+        if (process.env.SMTP_HOST) {
+            transporter = nodemailer.createTransport({
+                host: process.env.SMTP_HOST,
+                port: Number(process.env.SMTP_PORT) || 587,
+                secure: process.env.SMTP_SECURE === "true" || Number(process.env.SMTP_PORT) === 465,
+                auth: {
+                    user: process.env.SMTP_USER || process.env.EMAIL_USER,
+                    pass: process.env.SMTP_PASS || cleanPass,
+                },
+            });
+        }
+        // 2. Gmail with Google App Password (16 characters, spaces stripped)
+        else if (isAppPassword && process.env.EMAIL_USER) {
+            transporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: {
                     user: process.env.EMAIL_USER,
                     pass: cleanPass,
-                }
-                : {
+                },
+            });
+        }
+        // 3. Gmail with Google OAuth2
+        else if (
+            process.env.EMAIL_USER &&
+            process.env.GOOGLE_CLIENT_ID &&
+            process.env.GOOGLE_REFRESH_TOKEN
+        ) {
+            transporter = nodemailer.createTransport({
+                service: "gmail",
+                auth: {
                     type: "OAuth2",
                     user: process.env.EMAIL_USER,
                     clientId: process.env.GOOGLE_CLIENT_ID,
                     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
                     refreshToken: process.env.GOOGLE_REFRESH_TOKEN,
                 },
-        });
+            });
+        }
+        // 4. Fallback safe mock/stream transport for local development without credentials
+        else {
+            transporter = nodemailer.createTransport({
+                streamTransport: true,
+                newline: "windows",
+                buffer: true,
+            });
+        }
     }
     return transporter;
+}
+
+export function resetTransporter() {
+    transporter = null;
 }
 
 export function getAdminEmail() {
@@ -37,33 +73,52 @@ export function getAdminEmail() {
 }
 
 export async function sendEmail({ to, subject, text, html }) {
-    // In non-test mode, log email dispatch without exposing sensitive credentials or OTPs
+    // Detect if running inside an automated test suite
+    const isTest =
+        process.env.NODE_ENV === "test" ||
+        process.env.MOCK_EMAIL === "true" ||
+        process.argv.some((arg) => arg.includes("test")) ||
+        process.execArgv.some((arg) => arg.includes("test"));
+
+    const hasLiveCredentials = Boolean(
+        process.env.EMAIL_USER && (process.env.EMAIL_PASS || process.env.GOOGLE_REFRESH_TOKEN)
+    );
+
+    // Live email delivery runs in development/production when credentials exist and not in automated tests
+    const isLiveEmailEnabled =
+        !isTest &&
+        (process.env.ENABLE_LIVE_EMAIL === "true" || hasLiveCredentials || process.env.NODE_ENV === "production");
+
+    // In non-test mode, log email dispatch without exposing sensitive credentials or passwords
     if (process.env.NODE_ENV !== "test") {
         console.log("\n" + "=".repeat(64));
         console.log(`[EMAIL DISPATCH] To: ${to}`);
         console.log(`[EMAIL DISPATCH] Subject: ${subject}`);
         if (text) {
-            // Mask 6-digit OTP codes and passwords to protect sensitive medical and auth credentials
-            const sanitizedText = text
-                .replace(/\b\d{6}\b/g, "******")
-                .replace(/(password|secret|token)\s*[:=]\s*\S+/gi, "$1: [PROTECTED]");
+            // Mask OTPs in production to protect sensitive credentials; allow in development
+            let sanitizedText = text.replace(/(password|secret|token|pass|key)\s*[:=]\s*\S+/gi, "$1: [PROTECTED]");
+            if (process.env.NODE_ENV === "production") {
+                sanitizedText = sanitizedText.replace(/\b\d{6}\b/g, "******");
+            }
             console.log(`[EMAIL CONTENT]:\n${sanitizedText}`);
         }
         console.log("=".repeat(64) + "\n");
     }
 
-    // During development and automated testing, use mocked email delivery by default and do not send real emails.
-    // Real email dispatch only occurs in production or when explicitly enabled via ENABLE_LIVE_EMAIL=true.
-    const isLiveEmailEnabled = process.env.NODE_ENV === "production" || process.env.ENABLE_LIVE_EMAIL === "true";
-
+    // Safe mock response during development/test mode
     if (!isLiveEmailEnabled) {
-        return { messageId: "mock-" + Date.now(), response: "250 Mock email accepted (development/test mode)" };
+        return {
+            messageId: "mock-" + Date.now(),
+            response: "250 Mock email accepted (development/test mode)",
+        };
     }
 
     try {
         const mailer = getTransporter();
+        const fromAddress =
+            process.env.EMAIL_FROM || process.env.EMAIL_USER || "noreply@publiclab.internal";
         const result = await mailer.sendMail({
-            from: process.env.EMAIL_USER || "noreply@publiclab.internal",
+            from: fromAddress,
             to,
             subject,
             text,
@@ -71,14 +126,26 @@ export async function sendEmail({ to, subject, text, html }) {
         });
         return result;
     } catch (error) {
+        console.warn(`[EMAIL DELIVERY WARNING] Failed to deliver live email to ${to}: ${error.message}`);
+
+        if (error.message && (error.message.includes("550") || error.message.includes("limit"))) {
+            console.warn(
+                "[GMAIL NOTICE] Gmail daily sending limit exceeded or sender restricted. Configure EMAIL_PASS with a Google App Password in .env."
+            );
+        }
+        if (
+            error.message &&
+            (error.message.includes("invalid_grant") || error.message.includes("Token"))
+        ) {
+            console.warn(
+                "[GMAIL OAUTH2 NOTICE] Google OAuth2 Refresh Token expired or revoked. Please update GOOGLE_REFRESH_TOKEN or use EMAIL_PASS with a Google App Password."
+            );
+        }
+
         if (process.env.NODE_ENV !== "production") {
-            console.warn(`[EMAIL DELIVERY WARNING] Failed to deliver live email to ${to}: ${error.message}`);
-            if (error.message && error.message.includes("550")) {
-                console.warn("[GMAIL NOTICE] Gmail daily sending limit exceeded for your account. You can configure EMAIL_PASS with a Google App Password in .env.");
-            }
             return {
                 messageId: "dev-fallback-" + Date.now(),
-                response: "Logged to terminal console in development",
+                response: "Logged to terminal console in development (live delivery failed)",
             };
         }
         throw error;

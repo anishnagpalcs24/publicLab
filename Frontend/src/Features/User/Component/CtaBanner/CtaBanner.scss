@@ -1,0 +1,58 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-cta-banner {
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-hover 100%);
+  color: $color-text-inverse;
+  padding-top: $space-16;
+  padding-bottom: $space-16;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -20%;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  &__container {
+    @include container;
+    max-width: 760px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $space-6;
+    position: relative;
+    z-index: 2;
+
+    h2 {
+      font-size: $font-size-3xl;
+      color: $color-text-inverse;
+      font-weight: $font-weight-extrabold;
+      line-height: 1.2;
+
+      @include respond-to('md') {
+        font-size: $font-size-4xl;
+      }
+    }
+
+    p {
+      font-size: $font-size-lg;
+      color: rgba(255, 255, 255, 0.9);
+      line-height: 1.6;
+    }
+  }
+
+  &__actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: $space-4;
+  }
+}

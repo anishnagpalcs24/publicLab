@@ -143,3 +143,42 @@ export async function downloadReport(req, res, next) {
         next(error);
     }
 }
+
+// Request OTP for passwordless patient medical report access
+export async function requestPatientReportOtp(req, res, next) {
+    try {
+        const result = await reportService.requestPatientReportOtp({
+            email: req.body?.email,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: result.message,
+            ...(result.devOtp ? { devOtp: result.devOtp } : {}),
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Verify OTP and return patient reports
+export async function verifyPatientReportOtp(req, res, next) {
+    try {
+        const result = await reportService.verifyPatientReportOtp({
+            email: req.body?.email,
+            otp: req.body?.otp,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Patient reports retrieved successfully",
+            data: {
+                accessToken: result.accessToken,
+                patient: result.patient,
+                reports: result.reports,
+            },
+        });
+    } catch (error) {
+        next(error);
+    }
+}

@@ -1,0 +1,111 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-callback-form {
+  background-color: $color-surface;
+  border: 1px solid $color-border;
+  border-radius: $radius-2xl;
+  padding: $space-8;
+  box-shadow: $shadow-lg;
+  width: 100%;
+  max-width: 560px;
+  margin: 0 auto;
+
+  &__header {
+    margin-bottom: $space-6;
+    text-align: center;
+
+    h3 {
+      font-size: $font-size-2xl;
+      color: $color-text;
+      margin-bottom: $space-2;
+    }
+
+    p {
+      font-size: $font-size-sm;
+      color: $color-text-secondary;
+    }
+  }
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: $space-4;
+  }
+
+  &__textarea-group {
+    display: flex;
+    flex-direction: column;
+    gap: $space-1;
+
+    label {
+      font-size: $font-size-sm;
+      font-weight: $font-weight-medium;
+      color: $color-text;
+    }
+
+    textarea {
+      padding: $space-3;
+      font-size: $font-size-sm;
+      color: $color-text;
+      border: 1px solid $color-border;
+      border-radius: $radius-md;
+      outline: none;
+      min-height: 90px;
+      resize: vertical;
+      transition: all $transition-base;
+
+      &:focus {
+        @include focus-ring;
+      }
+    }
+  }
+
+  &__feedback {
+    padding: $space-3 $space-4;
+    border-radius: $radius-md;
+    font-size: $font-size-sm;
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+
+    &--error {
+      background-color: $color-danger-light;
+      color: $color-danger;
+    }
+
+    &--success {
+      background-color: $color-success-light;
+      color: $color-success;
+    }
+  }
+
+  &__success-card {
+    text-align: center;
+    padding: $space-8 $space-4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $space-4;
+
+    .icon-wrap {
+      width: 56px;
+      height: 56px;
+      border-radius: $radius-full;
+      background-color: $color-accent-light;
+      color: $color-accent;
+      @include flex-center;
+    }
+
+    h4 {
+      font-size: $font-size-xl;
+      color: $color-text;
+    }
+
+    p {
+      font-size: $font-size-sm;
+      color: $color-text-secondary;
+      max-width: 380px;
+    }
+  }
+}

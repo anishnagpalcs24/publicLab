@@ -74,7 +74,11 @@ test("Lab Owner Portal E2E: Registration -> Application -> Profile -> Patients -
     const combinedData = await combinedRegRes.json();
     assert.strictEqual(combinedRegRes.status, 201, "Combined lab registration should succeed");
     assert.strictEqual(combinedData.success, true);
-    assert.strictEqual(combinedData.data.approval_status, "pending");
+    assert.strictEqual(combinedData.data.approval_status, "unverified");
+    assert.strictEqual(
+      combinedData.message,
+      "Registration details received. Please verify your email to submit your application for administrator review."
+    );
     assert.strictEqual(combinedData.data.owner.requiresVerification, true);
     assert.strictEqual(combinedData.data.owner.role, "lab");
     labId = combinedData.data.id;
@@ -87,11 +91,20 @@ test("Lab Owner Portal E2E: Registration -> Application -> Profile -> Patients -
     );
     assert.ok(otpQuery.rows.length > 0, "Email verification OTP must be created for owner");
 
-    // Mark email as verified and activate owner
+    // Verify OTP via API to activate owner and transition lab to pending
+    const testOtp = "654321";
+    const testHash = crypto.createHash("sha256").update(testOtp).digest("hex");
     await pool.query(
-      `UPDATE users SET email_verified = TRUE, account_status = 'active' WHERE LOWER(email) = LOWER($1)`,
-      [ownerEmail]
+      `UPDATE email_otps SET otp_hash = $1 WHERE id = (SELECT id FROM email_otps WHERE LOWER(email) = LOWER($2) ORDER BY id DESC LIMIT 1)`,
+      [testHash, ownerEmail]
     );
+
+    const verifyOtpRes = await fetch(`${baseUrl}/auth/verify-otp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: ownerEmail, otp: testOtp }),
+    });
+    assert.strictEqual(verifyOtpRes.status, 200, "OTP verification should succeed");
 
     // -------------------------------------------------------------------------
     // 2. LOGIN (Using credentials created in combined form)

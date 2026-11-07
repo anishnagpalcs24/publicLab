@@ -1,0 +1,215 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-report-section {
+  background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+  border-top: 1px solid $color-border;
+  border-bottom: 1px solid $color-border;
+
+  &__container {
+    @include container;
+  }
+
+  &__header {
+    text-align: center;
+    max-width: 680px;
+    margin: 0 auto $space-10;
+
+    .badge {
+      display: inline-flex;
+      margin-bottom: $space-3;
+    }
+
+    h2 {
+      margin-bottom: $space-3;
+    }
+
+    p {
+      font-size: $font-size-base;
+    }
+  }
+
+  &__box {
+    max-width: 640px;
+    margin: 0 auto;
+    background-color: $color-surface;
+    border: 1px solid $color-border;
+    border-radius: $radius-2xl;
+    padding: $space-8;
+    box-shadow: $shadow-lg;
+
+    @include respond-to('sm') {
+      padding: $space-10;
+    }
+  }
+
+  &__step-tracker {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: $space-8;
+    position: relative;
+
+    &::after {
+      content: '';
+      position: absolute;
+      top: 16px;
+      left: 10%;
+      right: 10%;
+      height: 2px;
+      background-color: $color-border;
+      z-index: 1;
+    }
+
+    &-item {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: $space-2;
+
+      .dot {
+        width: 32px;
+        height: 32px;
+        border-radius: $radius-full;
+        background-color: $color-surface;
+        border: 2px solid $color-border;
+        color: $color-text-muted;
+        font-size: $font-size-xs;
+        font-weight: $font-weight-bold;
+        @include flex-center;
+        transition: all $transition-base;
+      }
+
+      .label {
+        font-size: $font-size-xs;
+        color: $color-text-secondary;
+        font-weight: $font-weight-medium;
+      }
+
+      &--active {
+        .dot {
+          background-color: $color-primary;
+          border-color: $color-primary;
+          color: $color-text-inverse;
+        }
+        .label {
+          color: $color-primary;
+          font-weight: $font-weight-semibold;
+        }
+      }
+
+      &--done {
+        .dot {
+          background-color: $color-accent;
+          border-color: $color-accent;
+          color: $color-text-inverse;
+        }
+      }
+    }
+  }
+
+  &__form {
+    display: flex;
+    flex-direction: column;
+    gap: $space-6;
+  }
+
+  &__otp-boxes {
+    display: flex;
+    gap: $space-2;
+    justify-content: center;
+
+    input {
+      width: 48px;
+      height: 54px;
+      font-size: $font-size-2xl;
+      font-weight: $font-weight-bold;
+      text-align: center;
+      border: 2px solid $color-border;
+      border-radius: $radius-md;
+      outline: none;
+      transition: all $transition-fast;
+
+      &:focus {
+        border-color: $color-primary;
+        box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
+      }
+    }
+  }
+
+  &__feedback {
+    padding: $space-3 $space-4;
+    border-radius: $radius-md;
+    font-size: $font-size-sm;
+    display: flex;
+    align-items: center;
+    gap: $space-2;
+
+    &--error {
+      background-color: $color-danger-light;
+      color: $color-danger;
+      border: 1px solid rgba(220, 38, 38, 0.2);
+    }
+
+    &--success {
+      background-color: $color-success-light;
+      color: $color-success;
+      border: 1px solid rgba(22, 163, 74, 0.2);
+    }
+  }
+
+  &__reports-list {
+    display: flex;
+    flex-direction: column;
+    gap: $space-4;
+  }
+
+  &__report-card {
+    padding: $space-4;
+    border: 1px solid $color-border;
+    border-radius: $radius-lg;
+    background-color: $color-bg;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: $space-3;
+
+    &-info {
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+
+      .icon {
+        width: 40px;
+        height: 40px;
+        border-radius: $radius-md;
+        background-color: $color-primary-light;
+        color: $color-primary;
+        @include flex-center;
+        flex-shrink: 0;
+      }
+
+      h4 {
+        font-size: $font-size-sm;
+        font-weight: $font-weight-semibold;
+      }
+
+      p {
+        font-size: $font-size-xs;
+        color: $color-text-muted;
+      }
+    }
+  }
+
+  &__empty-reports {
+    text-align: center;
+    padding: $space-8;
+    color: $color-text-secondary;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: $space-3;
+  }
+}

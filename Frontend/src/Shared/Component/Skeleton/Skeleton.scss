@@ -1,0 +1,42 @@
+@use '../../../styles/abstracts/variables' as *;
+
+.pl-skeleton {
+  background: linear-gradient(
+    90deg,
+    $color-border-light 25%,
+    $color-surface-hover 37%,
+    $color-border-light 63%
+  );
+  background-size: 400% 100%;
+  animation: skeletonPulse 1.4s ease infinite;
+  border-radius: $radius-sm;
+
+  &--text {
+    height: 14px;
+    margin-bottom: $space-2;
+    border-radius: $radius-xs;
+  }
+
+  &--title {
+    height: 24px;
+    margin-bottom: $space-3;
+    width: 60%;
+  }
+
+  &--circle {
+    border-radius: 50%;
+  }
+
+  &--rect {
+    border-radius: $radius-md;
+  }
+}
+
+@keyframes skeletonPulse {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0 50%;
+  }
+}

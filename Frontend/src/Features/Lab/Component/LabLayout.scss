@@ -1,0 +1,166 @@
+@use '../../../styles/abstracts/variables' as *;
+@use '../../../styles/abstracts/mixins' as *;
+
+.pl-lab-layout {
+  display: flex;
+  min-height: 100vh;
+  background-color: $color-bg;
+
+  &__sidebar {
+    width: 260px;
+    background-color: $color-surface;
+    border-right: 1px solid $color-border;
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: $z-fixed;
+    transition: transform $transition-base;
+
+    @include respond-below('lg') {
+      transform: translateX(-100%);
+      &--open {
+        transform: translateX(0);
+      }
+    }
+
+    &-header {
+      height: 72px;
+      padding: 0 $space-6;
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+      border-bottom: 1px solid $color-border;
+      font-weight: $font-weight-bold;
+      font-size: $font-size-lg;
+      color: $color-primary;
+
+      .icon {
+        width: 36px;
+        height: 36px;
+        border-radius: $radius-md;
+        background-color: $color-primary;
+        color: $color-text-inverse;
+        @include flex-center;
+      }
+    }
+
+    &-nav {
+      padding: $space-6 $space-4;
+      display: flex;
+      flex-direction: column;
+      gap: $space-2;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    &-link {
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+      padding: $space-3 $space-4;
+      border-radius: $radius-md;
+      font-size: $font-size-sm;
+      font-weight: $font-weight-medium;
+      color: $color-text-secondary;
+      transition: all $transition-fast;
+
+      &:hover {
+        background-color: $color-surface-hover;
+        color: $color-text;
+      }
+
+      &.active {
+        background-color: $color-primary-light;
+        color: $color-primary-hover;
+        font-weight: $font-weight-semibold;
+      }
+
+      &--locked {
+        opacity: 0.65;
+        color: #94a3b8;
+
+        &:hover {
+          background-color: transparent;
+          color: #94a3b8;
+        }
+      }
+
+      .lock-badge {
+        margin-left: auto;
+        font-size: 0.6875rem;
+        font-weight: 600;
+        padding: 2px 6px;
+        border-radius: 4px;
+        background-color: #f1f5f9;
+        color: #64748b;
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+      }
+    }
+
+    &-footer {
+      padding: $space-4 $space-6;
+      border-top: 1px solid $color-border;
+    }
+  }
+
+  &__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+
+    @include respond-to('lg') {
+      margin-left: 260px;
+    }
+  }
+
+  &__topbar {
+    height: 72px;
+    background-color: $color-surface;
+    border-bottom: 1px solid $color-border;
+    padding: 0 $space-6;
+    @include flex-between;
+    position: sticky;
+    top: 0;
+    z-index: $z-sticky;
+
+    &-left {
+      display: flex;
+      align-items: center;
+      gap: $space-4;
+    }
+
+    &-right {
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+    }
+
+    &-lab-name {
+      font-size: $font-size-sm;
+      font-weight: $font-weight-semibold;
+      color: $color-text;
+    }
+  }
+
+  &__content {
+    padding: $space-8 $space-6;
+    flex: 1;
+  }
+
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    background-color: rgba(15, 23, 42, 0.5);
+    z-index: $z-modal-backdrop;
+
+    @include respond-to('lg') {
+      display: none;
+    }
+  }
+}

@@ -1,0 +1,85 @@
+@use '../../../styles/abstracts/variables' as *;
+@use '../../../styles/abstracts/mixins' as *;
+
+.pl-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: $z-modal-backdrop;
+  @include flex-center;
+  padding: $space-4;
+  overflow-y: auto;
+}
+
+.pl-modal {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  background-color: $color-surface;
+  border-radius: $radius-xl;
+  box-shadow: $shadow-xl;
+  border: 1px solid $color-border;
+  overflow: hidden;
+  z-index: $z-modal;
+  animation: modalEnter 0.25s ease-out;
+
+  &--lg {
+    max-width: 720px;
+  }
+
+  &--xl {
+    max-width: 960px;
+  }
+
+  &__header {
+    @include flex-between;
+    padding: $space-4 $space-6;
+    border-bottom: 1px solid $color-border;
+
+    h3 {
+      font-size: $font-size-xl;
+      color: $color-text;
+    }
+  }
+
+  &__close-btn {
+    color: $color-text-secondary;
+    padding: $space-1;
+    border-radius: $radius-sm;
+    transition: color $transition-fast, background-color $transition-fast;
+
+    &:hover {
+      color: $color-text;
+      background-color: $color-surface-hover;
+    }
+  }
+
+  &__body {
+    padding: $space-6;
+    max-height: 75vh;
+    overflow-y: auto;
+    @include custom-scrollbar;
+  }
+
+  &__footer {
+    padding: $space-4 $space-6;
+    border-top: 1px solid $color-border;
+    background-color: $color-surface-alt;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: $space-3;
+  }
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

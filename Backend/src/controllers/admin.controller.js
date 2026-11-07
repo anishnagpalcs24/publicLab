@@ -8,7 +8,7 @@ function getCookieOptions() {
         httpOnly: true,
         secure: isProd,
         sameSite: isProd ? "strict" : "lax",
-        path: "/api/v1/auth",
+        path: "/",
         maxAge: 7 * 24 * 60 * 60 * 1000,
     };
 }
@@ -98,6 +98,24 @@ export async function updateUserStatus(req, res, next) {
     }
 }
 
+// Permanently delete a platform user account
+export async function deleteUser(req, res, next) {
+    try {
+        const result = await adminService.deleteUser({
+            userId: req.params.userId,
+            adminId: req.user.id,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: result.message || "User account deleted successfully",
+            data: result,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
 // List laboratory applications
 export async function getLabApplications(req, res, next) {
     try {
@@ -153,6 +171,24 @@ export async function suspendLab(req, res, next) {
             success: true,
             message: "Laboratory suspended successfully",
             data: lab,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Permanently delete a laboratory from the database
+export async function deleteLab(req, res, next) {
+    try {
+        const result = await adminService.deleteLab({
+            labId: req.params.labId,
+            adminId: req.user.id,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: result.message || "Laboratory deleted successfully",
+            data: result,
         });
     } catch (error) {
         next(error);

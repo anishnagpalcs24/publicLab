@@ -1,0 +1,53 @@
+// ============================================================================
+// PublicLab Global Base Styles
+// ============================================================================
+@use '../abstracts/variables' as *;
+@use '../abstracts/mixins' as *;
+
+body {
+  background-color: $color-bg;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+// Container Utility
+.container {
+  @include container;
+}
+
+// Page Wrapper
+.page-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+// Standard Section Spacing
+.section {
+  padding-top: $space-12;
+  padding-bottom: $space-12;
+
+  @include respond-to('md') {
+    padding-top: $space-16;
+    padding-bottom: $space-16;
+  }
+}
+
+// Reduced Motion Accessibility
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,96 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-how-it-works {
+  background-color: $color-surface;
+  border-top: 1px solid $color-border;
+  border-bottom: 1px solid $color-border;
+
+  &__container {
+    @include container;
+  }
+
+  &__header {
+    text-align: center;
+    max-width: 680px;
+    margin: 0 auto $space-12;
+
+    .badge {
+      display: inline-flex;
+      margin-bottom: $space-3;
+    }
+
+    h2 {
+      margin-bottom: $space-3;
+    }
+
+    p {
+      font-size: $font-size-base;
+    }
+  }
+
+  &__steps-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: $space-8;
+    position: relative;
+
+    @include respond-to('md') {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @include respond-to('lg') {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  &__step-card {
+    position: relative;
+    padding: $space-6;
+    background-color: $color-bg;
+    border: 1px solid $color-border;
+    border-radius: $radius-xl;
+    display: flex;
+    flex-direction: column;
+    gap: $space-4;
+    transition: transform $transition-base, box-shadow $transition-base;
+
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: $shadow-md;
+      border-color: $color-primary;
+    }
+
+    &-number {
+      width: 36px;
+      height: 36px;
+      border-radius: $radius-full;
+      background-color: $color-primary;
+      color: $color-text-inverse;
+      font-weight: $font-weight-bold;
+      font-size: $font-size-sm;
+      @include flex-center;
+    }
+
+    &-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: $radius-lg;
+      background-color: $color-primary-light;
+      color: $color-primary;
+      @include flex-center;
+    }
+
+    &-title {
+      font-size: $font-size-base;
+      font-weight: $font-weight-semibold;
+      color: $color-text;
+    }
+
+    &-desc {
+      font-size: $font-size-sm;
+      color: $color-text-secondary;
+      line-height: 1.5;
+    }
+  }
+}

@@ -149,7 +149,7 @@ export async function revokeAllUserSessions(userId) {
  * Create a new email OTP challenge.
  */
 export async function createEmailOtp({
-  userId,
+  userId = null,
   email,
   otpHash,
   purpose = "email_verification",
@@ -174,7 +174,7 @@ export async function createEmailOtp({
   `;
 
   const values = [
-    userId,
+    userId ?? null,
     email.toLowerCase().trim(),
     otpHash,
     purpose,
@@ -183,6 +183,21 @@ export async function createEmailOtp({
 
   const result = await pool.query(query, values);
   return result.rows[0];
+}
+
+/**
+ * Invalidate previous unused OTPs for an email and purpose.
+ */
+export async function invalidatePreviousOtps({ email, userId = null, purpose }) {
+  const query = `
+    UPDATE email_otps
+    SET is_used = TRUE
+    WHERE (LOWER(email) = LOWER($1) OR ($2::bigint IS NOT NULL AND user_id = $2::bigint))
+      AND purpose = $3
+      AND is_used = FALSE;
+  `;
+
+  await pool.query(query, [email ? email.trim() : "", userId, purpose]);
 }
 
 /**

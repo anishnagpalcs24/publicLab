@@ -22,9 +22,11 @@ router.use(authorize("admin"));
 router.get("/dashboard", adminController.getDashboard);
 router.get("/users", adminController.getUsers);
 router.patch("/users/:userId/status", adminController.updateUserStatus);
+router.delete("/users/:userId", adminController.deleteUser);
 router.get("/labs/applications", adminController.getLabApplications);
 router.patch("/labs/applications/:labId/review", adminController.reviewLabApplication);
 router.patch("/labs/:labId/suspend", adminController.suspendLab);
+router.delete("/labs/:labId", adminController.deleteLab);
 router.get("/callbacks", adminController.getCallbacks);
 router.get("/audit-logs", adminController.getAuditLogs);
 

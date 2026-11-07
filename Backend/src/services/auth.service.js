@@ -9,11 +9,12 @@ import {
   revokeSession,
   revokeAllUserSessions,
   createEmailOtp,
+  invalidatePreviousOtps,
   findLatestEmailOtp,
   incrementOtpAttempts,
   markOtpUsed,
 } from "../models/session.model.js";
-import { sendEmail } from "./email.service.js";
+import { sendEmail, notifyLabApplicationSubmitted } from "./email.service.js";
 
 function createError(message, statusCode, extra = {}) {
   const error = new Error(message);
@@ -40,7 +41,15 @@ function hashToken(token) {
 }
 
 function generateOtp() {
-  return crypto.randomInt(100000, 1000000).toString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
+
+    if (process.env.NODE_ENV === "development") {
+        console.log("\n========== PUBLICLAB TEST OTP ==========");
+        console.log(`OTP: ${otp}`);
+        console.log("========================================\n");
+    }
+
+    return otp;
 }
 
 function createAccessToken(user, sessionId) {
@@ -55,6 +64,7 @@ function createAccessToken(user, sessionId) {
     { expiresIn: process.env.JWT_EXPIRES_IN || "15m" }
   );
 }
+
 
 function createRefreshToken(user, sessionId) {
   return jwt.sign(
@@ -149,6 +159,12 @@ export async function register({
 
   // Generate and store OTP if email is provided
   if (normalizedEmail) {
+    await invalidatePreviousOtps({
+      userId,
+      email: normalizedEmail,
+      purpose: "email_verification",
+    });
+
     const otp = generateOtp();
     const otpHash = hashToken(otp);
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -160,6 +176,10 @@ export async function register({
       purpose: "email_verification",
       expiresAt,
     });
+
+    if (process.env.NODE_ENV !== "production") {
+      console.log(`\n🔑 [DEV ONLY OTP] Registration OTP for ${normalizedEmail}: >>> ${otp} <<<\n`);
+    }
 
     // Send email notification safely
     try {
@@ -257,6 +277,52 @@ export async function verifyEmailOtp({ email, otp, ipAddress, userAgent }) {
   user.email_verified = true;
   user.account_status = "active";
 
+  // If user is a lab owner with an unverified lab application, submit it now for admin review
+  if (user.role === "lab" || user.lab_id) {
+    try {
+      const unverifiedLabRes = await pool.query(
+        `SELECT id, name, registration_number, email, phone, city, approval_status
+         FROM labs
+         WHERE (id = $1 OR owner_id = $2) AND approval_status = 'unverified'
+         LIMIT 1`,
+        [user.lab_id || null, user.id]
+      );
+
+      if (unverifiedLabRes.rows.length > 0) {
+        const unverifiedLab = unverifiedLabRes.rows[0];
+        const updatedLabRes = await pool.query(
+          `UPDATE labs
+           SET approval_status = 'pending',
+               updated_at = NOW()
+           WHERE id = $1
+           RETURNING id, name, registration_number, email, phone, city, approval_status`,
+          [unverifiedLab.id]
+        );
+
+        const pendingLab = updatedLabRes.rows[0];
+
+        // Dispatch admin alert now that laboratory owner email is verified
+        notifyLabApplicationSubmitted({
+          lab: pendingLab,
+          owner: {
+            id: user.id,
+            fullName: user.full_name,
+            email: user.email,
+            phone: user.phone,
+          },
+        }).catch((err) => {
+          if (process.env.NODE_ENV !== "test") {
+            console.warn(`[ADMIN NOTIFICATION NOTICE] Could not dispatch lab application alert: ${err.message}`);
+          }
+        });
+      }
+    } catch (labErr) {
+      if (process.env.NODE_ENV !== "test") {
+        console.warn(`[LAB STATUS TRANSITION NOTICE] Error updating lab status: ${labErr.message}`);
+      }
+    }
+  }
+
   // Create session and issue tokens
   const sessionExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
   const tempHash = crypto.randomBytes(32).toString("hex");
@@ -323,6 +389,12 @@ export async function resendEmailOtp({ email }) {
     throw createError("Email is already verified. You can log in directly.", 400);
   }
 
+  await invalidatePreviousOtps({
+    userId: user.id,
+    email: normalizedEmail,
+    purpose: "email_verification",
+  });
+
   const otp = generateOtp();
   const otpHash = hashToken(otp);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
@@ -334,6 +406,10 @@ export async function resendEmailOtp({ email }) {
     purpose: "email_verification",
     expiresAt,
   });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`\n🔑 [DEV ONLY OTP] Resend OTP for ${normalizedEmail}: >>> ${otp} <<<\n`);
+  }
 
   try {
     await sendEmail({
@@ -503,8 +579,13 @@ export async function refreshTokens({ refreshToken, ipAddress, userAgent }) {
 
   // Reuse detection: token hash does not match current session state
   if (session.refresh_token_hash !== presentedTokenHash) {
-    await revokeAllUserSessions(userId);
-    throw createError("Invalid refresh token. Token reuse detected. All sessions invalidated.", 401);
+    const isRecentlyRotated = session.updated_at && (Date.now() - new Date(session.updated_at).getTime() < 30000);
+    if (!isRecentlyRotated) {
+      await revokeAllUserSessions(userId);
+      throw createError("Invalid refresh token. Token reuse detected. All sessions invalidated.", 401);
+    } else {
+      throw createError("Token was recently rotated. Please retry with latest token.", 401);
+    }
   }
 
   // Verify user is still active
@@ -604,6 +685,12 @@ export async function forgotPassword({ email }) {
     };
   }
 
+  await invalidatePreviousOtps({
+    userId: user.id,
+    email: normalizedEmail,
+    purpose: "password_reset",
+  });
+
   const otp = generateOtp();
   const otpHash = hashToken(otp);
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -615,6 +702,10 @@ export async function forgotPassword({ email }) {
     purpose: "password_reset",
     expiresAt,
   });
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log(`\n🔑 [DEV ONLY OTP] Password Reset OTP for ${normalizedEmail}: >>> ${otp} <<<\n`);
+  }
 
   try {
     await sendEmail({

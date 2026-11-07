@@ -1,0 +1,128 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-customer-reviews {
+  background-color: $color-surface;
+  overflow: hidden;
+  border-top: 1px solid $color-border;
+  border-bottom: 1px solid $color-border;
+
+  &__container {
+    @include container;
+    margin-bottom: $space-10;
+  }
+
+  &__header {
+    text-align: center;
+    max-width: 680px;
+    margin: 0 auto;
+
+    .badge {
+      display: inline-flex;
+      margin-bottom: $space-3;
+    }
+
+    h2 {
+      margin-bottom: $space-3;
+    }
+  }
+
+  &__marquee-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: $space-6;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+
+    // Gradient fade masks on both sides
+    &::before,
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 100px;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    &::before {
+      left: 0;
+      background: linear-gradient(90deg, #FFFFFF 0%, rgba(255, 255, 255, 0) 100%);
+    }
+
+    &::after {
+      right: 0;
+      background: linear-gradient(270deg, #FFFFFF 0%, rgba(255, 255, 255, 0) 100%);
+    }
+  }
+
+  &__row {
+    display: flex;
+    gap: $space-6;
+    width: max-content;
+  }
+
+  &__card {
+    width: 360px;
+    background-color: $color-bg;
+    border: 1px solid $color-border;
+    border-radius: $radius-xl;
+    padding: $space-6;
+    display: flex;
+    flex-direction: column;
+    gap: $space-3;
+    flex-shrink: 0;
+    transition: transform $transition-fast, border-color $transition-fast;
+
+    &:hover {
+      transform: translateY(-2px);
+      border-color: $color-primary;
+    }
+
+    &-rating {
+      display: flex;
+      gap: 2px;
+      color: #F59E0B;
+    }
+
+    &-text {
+      font-size: $font-size-sm;
+      color: $color-text;
+      line-height: 1.5;
+    }
+
+    &-author {
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+      padding-top: $space-2;
+      border-top: 1px solid $color-border-light;
+      margin-top: auto;
+
+      .avatar {
+        width: 32px;
+        height: 32px;
+        border-radius: $radius-full;
+        background-color: $color-primary-light;
+        color: $color-primary;
+        font-weight: $font-weight-bold;
+        font-size: $font-size-xs;
+        @include flex-center;
+      }
+
+      .meta {
+        h5 {
+          font-size: $font-size-xs;
+          font-weight: $font-weight-semibold;
+          color: $color-text;
+        }
+        span {
+          font-size: 0.7rem;
+          color: $color-text-muted;
+        }
+      }
+    }
+  }
+}

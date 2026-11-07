@@ -1,0 +1,59 @@
+@use '../../../styles/abstracts/variables' as *;
+@use '../../../styles/abstracts/mixins' as *;
+
+.pl-loader {
+  @include flex-center;
+  flex-direction: column;
+  gap: $space-3;
+  padding: $space-8;
+  color: $color-text-secondary;
+
+  &__spinner {
+    border-radius: 50%;
+    border-style: solid;
+    border-color: $color-border;
+    border-top-color: $color-primary;
+    animation: plSpin 0.8s linear infinite;
+
+    &--sm {
+      width: 20px;
+      height: 20px;
+      border-width: 2px;
+    }
+
+    &--md {
+      width: 36px;
+      height: 36px;
+      border-width: 3px;
+    }
+
+    &--lg {
+      width: 52px;
+      height: 52px;
+      border-width: 4px;
+    }
+  }
+
+  &__text {
+    font-size: $font-size-sm;
+    font-weight: $font-weight-medium;
+    color: $color-text-secondary;
+  }
+
+  &--fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(4px);
+    z-index: $z-modal;
+  }
+}
+
+@keyframes plSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}

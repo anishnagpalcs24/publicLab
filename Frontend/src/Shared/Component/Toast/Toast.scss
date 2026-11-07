@@ -1,0 +1,123 @@
+@use "../../../styles/abstracts/variables" as *;
+@use "../../../styles/abstracts/mixins" as *;
+
+.pl-toast-container {
+  position: fixed;
+  top: 1.5rem;
+  right: 1.5rem;
+  z-index: $z-toast;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 420px;
+  width: calc(100vw - 3rem);
+  pointer-events: none;
+
+  @media (max-width: 640px) {
+    top: 1rem;
+    right: 1rem;
+    left: 1rem;
+    width: auto;
+  }
+}
+
+.pl-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.875rem;
+  padding: 0.875rem 1rem;
+  border-radius: 12px;
+  background-color: #ffffff;
+  box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.12), 0 8px 10px -6px rgba(15, 23, 42, 0.04);
+  border: 1px solid #e2e8f0;
+  animation: pl-toast-slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+
+  &__icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  &__content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__title {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #0f172a;
+    line-height: 1.25;
+    margin-bottom: 0.25rem;
+  }
+
+  &__message {
+    font-size: 0.8125rem;
+    color: #475569;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+
+  &__close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: #94a3b8;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background-color 0.15s ease;
+
+    &:hover {
+      color: #0f172a;
+      background-color: #f1f5f9;
+    }
+  }
+
+  // Variants
+  &--success {
+    border-left: 4px solid #0f766e;
+    .pl-toast__icon {
+      color: #0f766e;
+    }
+  }
+
+  &--error {
+    border-left: 4px solid #dc2626;
+    .pl-toast__icon {
+      color: #dc2626;
+    }
+  }
+
+  &--warning {
+    border-left: 4px solid #d97706;
+    .pl-toast__icon {
+      color: #d97706;
+    }
+  }
+
+  &--info {
+    border-left: 4px solid #2563eb;
+    .pl-toast__icon {
+      color: #2563eb;
+    }
+  }
+}
+
+@keyframes pl-toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}

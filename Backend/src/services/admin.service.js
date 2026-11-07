@@ -336,6 +336,79 @@ export async function updateUserStatus({
     };
 }
 
+// Permanently delete a platform user account
+export async function deleteUser({ userId, adminId }) {
+    if (!adminId) {
+        throw createError("Administrator identity required", 403);
+    }
+
+    if (!userId) {
+        throw createError("User ID is required", 400);
+    }
+
+    if (String(userId) === String(adminId)) {
+        throw createError("You cannot delete your own administrator account", 400);
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const userRes = await client.query(
+            `SELECT id, full_name, email, role, lab_id FROM users WHERE id = $1`,
+            [userId]
+        );
+
+        if (userRes.rows.length === 0) {
+            throw createError("User account not found", 404);
+        }
+
+        const user = userRes.rows[0];
+
+        if (user.role === "admin") {
+            throw createError("Administrator accounts cannot be deleted", 403);
+        }
+
+        // 1. Clear RESTRICT foreign key references
+        await client.query(
+            `UPDATE callbacks SET assigned_to = NULL WHERE assigned_to = $1`,
+            [userId]
+        );
+        await client.query(
+            `UPDATE reports SET uploaded_by = NULL WHERE uploaded_by = $1`,
+            [userId]
+        );
+        await client.query(
+            `UPDATE report_versions SET uploaded_by = NULL WHERE uploaded_by = $1`,
+            [userId]
+        );
+        await client.query(
+            `UPDATE labs SET owner_id = NULL WHERE owner_id = $1`,
+            [userId]
+        );
+
+        // 2. Delete sessions and OTPs
+        await client.query(`DELETE FROM auth_sessions WHERE user_id = $1`, [userId]);
+        await client.query(`DELETE FROM email_otps WHERE user_id = $1`, [userId]);
+
+        // 3. Delete user record
+        await client.query(`DELETE FROM users WHERE id = $1`, [userId]);
+
+        await client.query("COMMIT");
+
+        return {
+            id: user.id,
+            email: user.email,
+            message: `User account "${user.email}" permanently deleted`,
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
+}
+
 // List laboratory applications with full owner details and contact information
 export async function getLabApplications({
     user,
@@ -348,6 +421,7 @@ export async function getLabApplications({
 
     const pagination = parsePagination(limit, offset);
     const allowedStatuses = [
+        "unverified",
         "pending",
         "approved",
         "rejected",
@@ -430,6 +504,36 @@ export async function reviewLabApplication({
     }
 
     const trimmedReason = reason?.trim() || null;
+
+    // Check laboratory existence and verify owner email status
+    const labCheck = await pool.query(
+        `SELECT l.id, l.name, l.approval_status, u.email_verified
+         FROM labs l
+         LEFT JOIN users u ON u.id = l.owner_id
+         WHERE l.id = $1`,
+        [labId]
+    );
+
+    if (labCheck.rows.length === 0) {
+        throw createError("Laboratory application not found", 404);
+    }
+
+    const currentLab = labCheck.rows[0];
+
+    // Ensure unverified applications cannot be approved or rejected
+    if (currentLab.approval_status === "unverified" || currentLab.email_verified === false) {
+        throw createError(
+            "Cannot review or approve an unverified laboratory application. The owner must verify their email before administrator review.",
+            400
+        );
+    }
+
+    if (currentLab.approval_status !== "pending") {
+        throw createError(
+            `Laboratory application cannot be reviewed because its current status is '${currentLab.approval_status}'`,
+            400
+        );
+    }
 
     const result = await pool.query(
         `UPDATE labs
@@ -530,6 +634,129 @@ export async function suspendLab({ labId, reason, adminId }) {
         ...suspendedLab,
         suspensionReason: trimmedReason,
     };
+}
+
+// Permanently delete a laboratory from the database
+export async function deleteLab({ labId, adminId }) {
+    if (!adminId) {
+        throw createError("Administrator identity required", 403);
+    }
+
+    if (!labId) {
+        throw createError("Laboratory ID is required", 400);
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const labCheck = await client.query(
+            `SELECT id, name, email, owner_id FROM labs WHERE id = $1`,
+            [labId]
+        );
+
+        if (labCheck.rows.length === 0) {
+            throw createError("Laboratory not found", 404);
+        }
+
+        const lab = labCheck.rows[0];
+
+        // 1. Delete payment_webhook_events associated with orders or subscriptions of this lab
+        await client.query(
+            `DELETE FROM payment_webhook_events
+             WHERE payment_id IN (
+                 SELECT id FROM payments
+                 WHERE order_id IN (SELECT id FROM orders WHERE lab_id = $1)
+                    OR subscription_id IN (SELECT id FROM subscriptions WHERE lab_id = $1)
+             )`,
+            [labId]
+        );
+
+        // 2. Delete payments associated with orders or subscriptions of this lab
+        await client.query(
+            `DELETE FROM payments
+             WHERE order_id IN (SELECT id FROM orders WHERE lab_id = $1)
+                OR subscription_id IN (SELECT id FROM subscriptions WHERE lab_id = $1)`,
+            [labId]
+        );
+
+        // 3. Delete report versions
+        await client.query(
+            `DELETE FROM report_versions
+             WHERE report_id IN (SELECT id FROM reports WHERE lab_id = $1)`,
+            [labId]
+        );
+
+        // 4. Delete reports
+        await client.query(
+            `DELETE FROM reports WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 5. Delete order items
+        await client.query(
+            `DELETE FROM order_items
+             WHERE order_id IN (SELECT id FROM orders WHERE lab_id = $1)`,
+            [labId]
+        );
+
+        // 6. Delete orders
+        await client.query(
+            `DELETE FROM orders WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 7. Delete subscriptions
+        await client.query(
+            `DELETE FROM subscriptions WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 8. Delete clinical calculations
+        await client.query(
+            `DELETE FROM clinical_calculations WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 9. Delete callbacks
+        await client.query(
+            `DELETE FROM callbacks WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 10. Delete lab_patient_refs
+        await client.query(
+            `DELETE FROM lab_patient_refs WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 11. Dissociate users referencing this lab
+        await client.query(
+            `UPDATE users
+             SET lab_id = NULL
+             WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 12. Delete the laboratory record itself
+        await client.query(
+            `DELETE FROM labs WHERE id = $1`,
+            [labId]
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            id: lab.id,
+            name: lab.name,
+            message: `Laboratory "${lab.name}" and all associated records permanently deleted`,
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 // List callback requests for administrators

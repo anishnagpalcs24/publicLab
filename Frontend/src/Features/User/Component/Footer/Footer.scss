@@ -1,0 +1,131 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-footer {
+  background-color: #082F36;
+  color: $color-surface-hover;
+  padding-top: $space-16;
+  padding-bottom: $space-8;
+  margin-top: auto;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+
+  &__container {
+    @include container;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: $space-10;
+    margin-bottom: $space-12;
+
+    @include respond-to('md') {
+      grid-template-columns: 2fr 1fr 1fr 1.5fr;
+    }
+  }
+
+  &__brand {
+    display: flex;
+    flex-direction: column;
+    gap: $space-4;
+
+    &-logo {
+      display: flex;
+      align-items: center;
+      gap: $space-3;
+      font-weight: $font-weight-bold;
+      font-size: $font-size-2xl;
+      color: $color-surface;
+
+      span {
+        color: #38BDF8;
+      }
+    }
+
+    &-desc {
+      font-size: $font-size-sm;
+      color: $color-text-muted;
+      line-height: 1.6;
+      max-width: 340px;
+    }
+
+    &-badges {
+      display: flex;
+      gap: $space-2;
+      flex-wrap: wrap;
+    }
+  }
+
+  &__col {
+    display: flex;
+    flex-direction: column;
+    gap: $space-4;
+
+    h4 {
+      color: $color-surface;
+      font-size: $font-size-base;
+      font-weight: $font-weight-semibold;
+      letter-spacing: 0.02em;
+    }
+
+    ul {
+      display: flex;
+      flex-direction: column;
+      gap: $space-3;
+    }
+
+    li a {
+      font-size: $font-size-sm;
+      color: $color-text-muted;
+      transition: color $transition-fast;
+
+      &:hover {
+        color: $color-surface;
+      }
+    }
+  }
+
+  &__contact {
+    display: flex;
+    flex-direction: column;
+    gap: $space-3;
+    font-size: $font-size-sm;
+    color: $color-text-muted;
+
+    &-item {
+      display: flex;
+      align-items: flex-start;
+      gap: $space-3;
+      line-height: 1.5;
+
+      svg {
+        flex-shrink: 0;
+        margin-top: 3px;
+        color: $color-accent;
+      }
+    }
+  }
+
+  &__bottom {
+    padding-top: $space-8;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    @include flex-between;
+    flex-direction: column;
+    gap: $space-4;
+    font-size: $font-size-xs;
+    color: $color-text-muted;
+
+    @include respond-to('md') {
+      flex-direction: row;
+    }
+
+    &-links {
+      display: flex;
+      gap: $space-6;
+
+      a:hover {
+        color: $color-surface;
+      }
+    }
+  }
+}

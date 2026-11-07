@@ -1,0 +1,123 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-patient-stories {
+  background-color: $color-bg;
+
+  &__container {
+    @include container;
+  }
+
+  &__header {
+    text-align: center;
+    max-width: 680px;
+    margin: 0 auto $space-12;
+
+    .badge {
+      display: inline-flex;
+      margin-bottom: $space-3;
+    }
+
+    h2 {
+      margin-bottom: $space-3;
+    }
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: $space-6;
+
+    @include respond-to('md') {
+      grid-template-columns: 1.2fr 1fr;
+    }
+
+    @include respond-to('lg') {
+      grid-template-columns: 1.3fr 1fr 1fr;
+    }
+  }
+
+  &__card {
+    position: relative;
+    border-radius: $radius-2xl;
+    overflow: hidden;
+    min-height: 380px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: $space-8;
+    background-size: cover;
+    background-position: center;
+    border: 1px solid $color-border;
+    transition: transform $transition-base, box-shadow $transition-base;
+
+    &:hover {
+      transform: translateY(-4px);
+      box-shadow: $shadow-xl;
+
+      .pl-patient-stories__card-arrow {
+        transform: translateX(4px);
+      }
+    }
+
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.1) 0%, rgba(15, 23, 42, 0.85) 100%);
+      z-index: 1;
+    }
+
+    &--featured {
+      @include respond-to('md') {
+        grid-column: span 2;
+      }
+      @include respond-to('lg') {
+        grid-column: span 1;
+        min-height: 440px;
+      }
+    }
+
+    &-content {
+      position: relative;
+      z-index: 2;
+      color: $color-text-inverse;
+      display: flex;
+      flex-direction: column;
+      gap: $space-3;
+    }
+
+    &-tag {
+      font-size: $font-size-xs;
+      font-weight: $font-weight-semibold;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #38BDF8;
+    }
+
+    &-quote {
+      font-size: $font-size-lg;
+      font-weight: $font-weight-semibold;
+      line-height: 1.4;
+      color: #FFFFFF;
+    }
+
+    &-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: $space-3;
+      border-top: 1px solid rgba(255, 255, 255, 0.2);
+
+      .info {
+        font-size: $font-size-xs;
+        color: rgba(255, 255, 255, 0.8);
+      }
+
+      .pl-patient-stories__card-arrow {
+        color: #38BDF8;
+        transition: transform $transition-fast;
+      }
+    }
+  }
+}

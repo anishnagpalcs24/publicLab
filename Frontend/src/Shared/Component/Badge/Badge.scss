@@ -1,0 +1,44 @@
+@use '../../../styles/abstracts/variables' as *;
+
+.pl-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: $space-1;
+  padding: $space-1 $space-2;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-medium;
+  border-radius: $radius-full;
+  line-height: 1;
+  white-space: nowrap;
+
+  &--primary {
+    background-color: $color-primary-light;
+    color: $color-primary;
+  }
+
+  &--secondary {
+    background-color: $color-secondary-light;
+    color: $color-secondary;
+  }
+
+  &--success {
+    background-color: $color-success-light;
+    color: $color-success;
+  }
+
+  &--warning {
+    background-color: $color-warning-light;
+    color: $color-warning;
+  }
+
+  &--danger {
+    background-color: $color-danger-light;
+    color: $color-danger;
+  }
+
+  &--neutral {
+    background-color: $color-surface-hover;
+    color: $color-text-secondary;
+    border: 1px solid $color-border;
+  }
+}

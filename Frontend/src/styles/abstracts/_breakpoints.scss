@@ -1,0 +1,17 @@
+// ============================================================================
+// Responsive Breakpoints
+// ============================================================================
+
+$breakpoint-sm: 480px;   // Small mobile
+$breakpoint-md: 768px;   // Tablets & large mobile
+$breakpoint-lg: 1024px;  // Laptops / tablets landscape
+$breakpoint-xl: 1280px;  // Desktops
+$breakpoint-2xl: 1536px; // Wide screens
+
+$breakpoints: (
+  'sm': $breakpoint-sm,
+  'md': $breakpoint-md,
+  'lg': $breakpoint-lg,
+  'xl': $breakpoint-xl,
+  '2xl': $breakpoint-2xl
+);

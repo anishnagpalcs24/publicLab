@@ -1,10 +1,13 @@
 # Dependencies
 node_modules/
 Backend/node_modules/
+Frontend/node_modules/
+Frontend/dist/
 
 # Environment files
 .env
 Backend/.env
+Frontend/.env
 *.env.local
 
 # Logs
@@ -14,4 +17,5 @@ logs/
 # OS & Temp
 .DS_Store
 Thumbs.db
+Backend/storage/
 

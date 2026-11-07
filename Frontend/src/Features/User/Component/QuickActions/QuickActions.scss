@@ -1,0 +1,102 @@
+@use '../../../../styles/abstracts/variables' as *;
+@use '../../../../styles/abstracts/mixins' as *;
+
+.pl-quick-actions {
+  background-color: $color-bg;
+  padding-top: $space-12;
+  padding-bottom: $space-12;
+
+  &__container {
+    @include container;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: $space-6;
+
+    @include respond-to('sm') {
+      grid-template-columns: repeat(2, 1fr);
+    }
+
+    @include respond-to('lg') {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  &__card {
+    @include card-surface;
+    padding: $space-6;
+    display: flex;
+    flex-direction: column;
+    gap: $space-4;
+    cursor: pointer;
+    text-align: left;
+    background-color: $color-surface;
+
+    @include card-hover;
+
+    &:hover {
+      .pl-quick-actions__card-arrow {
+        transform: translateX(4px);
+        color: $color-primary;
+      }
+      .pl-quick-actions__card-icon {
+        transform: scale(1.08);
+      }
+    }
+
+    &-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: $radius-lg;
+      @include flex-center;
+      transition: transform $transition-base;
+
+      &--teal {
+        background-color: $color-primary-light;
+        color: $color-primary;
+      }
+      &--blue {
+        background-color: $color-secondary-light;
+        color: $color-secondary;
+      }
+      &--green {
+        background-color: $color-accent-light;
+        color: $color-accent;
+      }
+      &--amber {
+        background-color: $color-warning-light;
+        color: $color-warning;
+      }
+    }
+
+    &-title {
+      font-size: $font-size-lg;
+      font-weight: $font-weight-semibold;
+      color: $color-text;
+    }
+
+    &-desc {
+      font-size: $font-size-sm;
+      color: $color-text-secondary;
+      line-height: 1.5;
+      flex-grow: 1;
+    }
+
+    &-action {
+      display: flex;
+      align-items: center;
+      gap: $space-2;
+      font-size: $font-size-sm;
+      font-weight: $font-weight-semibold;
+      color: $color-primary;
+      padding-top: $space-2;
+      border-top: 1px solid $color-border-light;
+
+      .pl-quick-actions__card-arrow {
+        transition: transform $transition-fast, color $transition-fast;
+      }
+    }
+  }
+}

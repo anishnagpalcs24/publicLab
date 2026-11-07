@@ -68,6 +68,7 @@ export async function getLabs(req, res, next) {
     try {
         const result = await labService.getLabs({
             search: req.query.search,
+            city: req.query.city,
             limit: req.query.limit,
             offset: req.query.offset,
         });
@@ -169,6 +170,24 @@ export async function suspendLab(req, res, next) {
             success: true,
             message: "Laboratory suspended successfully",
             data: lab,
+        });
+    } catch (error) {
+        next(error);
+    }
+}
+
+// Permanently delete a laboratory (admin only)
+export async function deleteLab(req, res, next) {
+    try {
+        const result = await labService.deleteLab({
+            labId: req.params.labId,
+            deletedBy: req.user.id,
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: result.message || "Laboratory deleted successfully",
+            data: result,
         });
     } catch (error) {
         next(error);

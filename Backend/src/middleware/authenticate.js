@@ -1,6 +1,7 @@
 import jwt from "jsonwebtoken";
 import { pool } from "../config/db.js";
 
+
 function getAccessSecret() {
   const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
   if (!secret) {
@@ -30,6 +31,39 @@ export async function authenticate(req, res, next) {
         success: false,
         message: "Invalid or expired access token",
       });
+    }
+
+    // Support passwordless patient report access tokens (no users account required)
+    if (decoded.type === "patient_report_access") {
+      const patientId = decoded.patientId || decoded.sub || decoded.id;
+      const patientResult = await pool.query(
+        `SELECT id, full_name, email, phone
+         FROM patients
+         WHERE id = $1`,
+        [patientId]
+      );
+
+      const patient = patientResult.rows[0];
+
+      if (!patient) {
+        return res.status(401).json({
+          success: false,
+          message: "Patient record no longer exists",
+        });
+      }
+
+      req.user = {
+        id: patient.id,
+        patientId: patient.id,
+        fullName: patient.full_name,
+        email: patient.email,
+        phone: patient.phone,
+        role: "patient",
+        type: "patient_report_access",
+      };
+
+      req.session = { id: null };
+      return next();
     }
 
     const userId = decoded.sub || decoded.id;

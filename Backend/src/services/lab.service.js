@@ -124,6 +124,8 @@ export async function createLab(data, user = null) {
 
         let ownerId = user?.id || null;
 
+        let existingLabId = null;
+
         // If caller is already authenticated
         if (ownerId) {
             const existingLab = await client.query(
@@ -155,14 +157,37 @@ export async function createLab(data, user = null) {
             if (existingUser.rows.length > 0) {
                 const existing = existingUser.rows[0];
 
-                if (existing.email_verified) {
+                // Check if this owner already has any laboratory record in the system
+                const existingUserLab = await client.query(
+                    `SELECT id, name, approval_status
+                     FROM labs
+                     WHERE owner_id = $1
+                     LIMIT 1`,
+                    [existing.id]
+                );
+
+                if (existing.email_verified && existingUserLab.rows.length > 0) {
                     throw createError(
                         "An account with this owner email already exists. Please log in first to submit your lab application.",
                         409
                     );
                 }
 
-                // Existing unverified account: update credentials and allow re-verification
+                // Check if phone number is used by another account
+                if (ownerPhone) {
+                    const phoneConflict = await client.query(
+                        `SELECT id, email FROM users WHERE phone = $1 AND id != $2 LIMIT 1`,
+                        [ownerPhone, existing.id]
+                    );
+                    if (phoneConflict.rows.length > 0) {
+                        throw createError(
+                            `This phone number (${ownerPhone}) is already registered with another account (${phoneConflict.rows[0].email}). Please use a different phone number.`,
+                            409
+                        );
+                    }
+                }
+
+                // Existing account without an active lab (or unverified): update credentials and allow re-registration
                 ownerId = existing.id;
                 await client.query(
                     `UPDATE users
@@ -170,11 +195,31 @@ export async function createLab(data, user = null) {
                          password_hash = $2,
                          phone = COALESCE($3, phone),
                          role = 'lab',
+                         account_status = 'pending',
+                         email_verified = FALSE,
                          updated_at = NOW()
                      WHERE id = $4`,
                     [ownerFullName, passwordHash, ownerPhone, ownerId]
                 );
+
+                // Find if an unverified or rejected lab already exists for this owner
+                if (existingUserLab.rows.length > 0 && ["unverified", "rejected"].includes(existingUserLab.rows[0].approval_status)) {
+                    existingLabId = existingUserLab.rows[0].id;
+                }
             } else {
+                if (ownerPhone) {
+                    const phoneConflict = await client.query(
+                        `SELECT id, email FROM users WHERE phone = $1 LIMIT 1`,
+                        [ownerPhone]
+                    );
+                    if (phoneConflict.rows.length > 0) {
+                        throw createError(
+                            `This phone number (${ownerPhone}) is already registered with another account (${phoneConflict.rows[0].email}). Please use a different phone number.`,
+                            409
+                        );
+                    }
+                }
+
                 // Insert new owner user account with 'lab' role
                 const userResult = await client.query(
                     `INSERT INTO users
@@ -185,36 +230,110 @@ export async function createLab(data, user = null) {
                 );
                 ownerId = userResult.rows[0].id;
             }
+
+            // Also check if an unverified lab exists matching registration number or email
+            if (!existingLabId) {
+                const unverifiedLab = await client.query(
+                    `SELECT id FROM labs
+                     WHERE (registration_number = $1 OR (email IS NOT NULL AND LOWER(email) = $2))
+                       AND approval_status = 'unverified'
+                     LIMIT 1`,
+                    [registrationNumber, labEmail]
+                );
+                if (unverifiedLab.rows.length > 0) {
+                    existingLabId = unverifiedLab.rows[0].id;
+                }
+            }
         }
 
-        // 4. Create the laboratory record
-        const labResult = await client.query(
-            `INSERT INTO labs
-                (name, registration_number, email, phone,
-                 description, address, city, operating_hours, services,
-                 sample_collection_available, technical_contact, owner_id, approval_status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, 'pending')
-             RETURNING id, name, registration_number, email, phone,
-                       description, address, city, operating_hours, services,
-                       sample_collection_available, technical_contact, approval_status,
-                       owner_id, created_at`,
-            [
-                name,
-                registrationNumber,
-                labEmail,
-                labPhone,
-                description,
-                address,
-                city,
-                operatingHours ? JSON.stringify(operatingHours) : null,
-                services,
-                sampleCollectionAvailable,
-                JSON.stringify(technicalContact),
-                ownerId,
-            ]
+        // Prevent conflict with existing pending/approved/suspended labs
+        const conflictLab = await client.query(
+            `SELECT id, name FROM labs
+             WHERE (registration_number = $1 OR (email IS NOT NULL AND LOWER(email) = $2))
+               AND id != COALESCE($3, -1)
+             LIMIT 1`,
+            [registrationNumber, labEmail, existingLabId]
         );
+        if (conflictLab.rows.length > 0) {
+            throw createError(
+                `A laboratory with this registration number or email already exists (${conflictLab.rows[0].name})`,
+                409
+            );
+        }
 
-        const lab = labResult.rows[0];
+        // 4. Create or update the laboratory record
+        // An unauthenticated registration begins as 'unverified' until owner OTP verification
+        const initialApprovalStatus = user && user.emailVerified ? "pending" : "unverified";
+
+        let lab;
+        if (existingLabId) {
+            const labResult = await client.query(
+                `UPDATE labs
+                 SET name = $1,
+                     registration_number = $2,
+                     email = $3,
+                     phone = $4,
+                     description = $5,
+                     address = $6,
+                     city = $7,
+                     operating_hours = $8,
+                     services = $9::jsonb,
+                     sample_collection_available = $10,
+                     technical_contact = $11::jsonb,
+                     owner_id = $12,
+                     approval_status = 'unverified',
+                     updated_at = NOW()
+                 WHERE id = $13
+                 RETURNING id, name, registration_number, email, phone,
+                           description, address, city, operating_hours, services,
+                           sample_collection_available, technical_contact, approval_status,
+                           owner_id, created_at`,
+                [
+                    name,
+                    registrationNumber,
+                    labEmail,
+                    labPhone,
+                    description,
+                    address,
+                    city,
+                    operatingHours ? JSON.stringify(operatingHours) : null,
+                    services,
+                    sampleCollectionAvailable,
+                    JSON.stringify(technicalContact),
+                    ownerId,
+                    existingLabId,
+                ]
+            );
+            lab = labResult.rows[0];
+        } else {
+            const labResult = await client.query(
+                `INSERT INTO labs
+                    (name, registration_number, email, phone,
+                     description, address, city, operating_hours, services,
+                     sample_collection_available, technical_contact, owner_id, approval_status)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10, $11::jsonb, $12, $13)
+                 RETURNING id, name, registration_number, email, phone,
+                           description, address, city, operating_hours, services,
+                           sample_collection_available, technical_contact, approval_status,
+                           owner_id, created_at`,
+                [
+                    name,
+                    registrationNumber,
+                    labEmail,
+                    labPhone,
+                    description,
+                    address,
+                    city,
+                    operatingHours ? JSON.stringify(operatingHours) : null,
+                    services,
+                    sampleCollectionAvailable,
+                    JSON.stringify(technicalContact),
+                    ownerId,
+                    initialApprovalStatus,
+                ]
+            );
+            lab = labResult.rows[0];
+        }
 
         // 5. Link user to the created lab
         await client.query(
@@ -229,6 +348,16 @@ export async function createLab(data, user = null) {
         // 6. Generate and store OTP if this was an unauthenticated registration
         let verificationOtp = null;
         if (!user && ownerEmail) {
+            // Invalidate any previously issued active email verification OTPs for this user/email
+            await client.query(
+                `UPDATE email_otps
+                 SET is_used = TRUE
+                 WHERE (user_id = $1 OR LOWER(email) = LOWER($2))
+                   AND purpose = 'email_verification'
+                   AND is_used = FALSE`,
+                [ownerId, ownerEmail]
+            );
+
             verificationOtp = generateOtp();
             const otpHash = hashToken(verificationOtp);
             const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
@@ -239,6 +368,10 @@ export async function createLab(data, user = null) {
                  VALUES ($1, $2, $3, 'email_verification', $4)`,
                 [ownerId, ownerEmail, otpHash, expiresAt]
             );
+
+            if (process.env.NODE_ENV !== "production") {
+                console.log(`\n🔑 [DEV ONLY OTP] Lab Registration OTP for ${ownerEmail}: >>> ${verificationOtp} <<<\n`);
+            }
 
             // Safe dispatch of verification email
             try {
@@ -267,16 +400,19 @@ export async function createLab(data, user = null) {
 
         await client.query("COMMIT");
 
-        // Safely dispatch admin notification of new lab application
-        notifyLabApplicationSubmitted({
-            lab,
-            owner: {
-                id: ownerId,
-                fullName: ownerFullName || user?.fullName,
-                email: ownerEmail || user?.email,
-                phone: ownerPhone || user?.phone,
-            },
-        }).catch(() => {});
+        // Safely dispatch admin notification of new lab application ONLY when already verified
+        // Unverified registrations dispatch admin notification only after owner OTP verification
+        if (initialApprovalStatus === "pending") {
+            notifyLabApplicationSubmitted({
+                lab,
+                owner: {
+                    id: ownerId,
+                    fullName: ownerFullName || user?.fullName,
+                    email: ownerEmail || user?.email,
+                    phone: ownerPhone || user?.phone,
+                },
+            }).catch(() => {});
+        }
 
         const devOtp = process.env.NODE_ENV === "development" ? verificationOtp : undefined;
 
@@ -290,19 +426,38 @@ export async function createLab(data, user = null) {
                 fullName: ownerFullName || user?.fullName,
                 email: ownerEmail || user?.email,
                 role: "lab",
-                requiresVerification: !user,
+                requiresVerification: initialApprovalStatus === "unverified",
                 ...(devOtp ? { devOtp } : {}),
             },
             ...(devOtp ? { devOtp } : {}),
-            message: !user
-                ? "Laboratory application submitted and owner account registered successfully. Please verify your email with the OTP sent."
+            message: initialApprovalStatus === "unverified"
+                ? "Registration details received. Please verify your email to submit your application for administrator review."
                 : "Laboratory application submitted successfully",
         };
     } catch (error) {
         await client.query("ROLLBACK");
         if (error.code === "23505") {
+            const detail = error.detail || "";
+            if (error.constraint === "users_phone_unique" || detail.includes("phone")) {
+                throw createError(
+                    "This phone number is already registered to another account. Please use a distinct phone number.",
+                    409
+                );
+            }
+            if (error.constraint === "users_email_unique" || detail.includes("email")) {
+                throw createError(
+                    "An account with this email address already exists. Please log in first.",
+                    409
+                );
+            }
+            if (detail.includes("registration_number")) {
+                throw createError(
+                    "A laboratory with this legal registration number already exists.",
+                    409
+                );
+            }
             throw createError(
-                "A laboratory with this registration number or email already exists",
+                "A laboratory with this registration number or contact details already exists.",
                 409
             );
         }
@@ -461,38 +616,56 @@ export async function resubmitApplication({ user, updates = {} }) {
 // List approved laboratories for public discovery
 export async function getLabs({
     search,
+    city,
     limit = 20,
     offset = 0,
 } = {}) {
     const pagination = parsePagination(limit, offset);
     const searchTerm = search?.trim() || null;
+    const cityTerm = city?.trim() || null;
 
-    const values = [searchTerm, pagination.limit, pagination.offset];
+    const values = [searchTerm, cityTerm, pagination.limit, pagination.offset];
 
     const result = await pool.query(
-        `SELECT id, name, email, phone, description, approval_status
+        `SELECT id, name, registration_number, email, phone, description,
+                address, city, operating_hours, services, sample_collection_available,
+                approval_status, created_at, updated_at
          FROM labs
-         WHERE approval_status = 'approved'
+         WHERE LOWER(approval_status) = 'approved'
            AND (
              $1::text IS NULL
              OR name ILIKE '%' || $1 || '%'
              OR description ILIKE '%' || $1 || '%'
+             OR city ILIKE '%' || $1 || '%'
+             OR registration_number ILIKE '%' || $1 || '%'
            )
-         ORDER BY name ASC
-         LIMIT $2 OFFSET $3`,
+           AND (
+             $2::text IS NULL
+             OR city ILIKE '%' || $2 || '%'
+             OR address ILIKE '%' || $2 || '%'
+           )
+         ORDER BY id DESC
+         LIMIT $3 OFFSET $4`,
         values
     );
 
     const countResult = await pool.query(
         `SELECT COUNT(*)
          FROM labs
-         WHERE approval_status = 'approved'
+         WHERE LOWER(approval_status) = 'approved'
            AND (
              $1::text IS NULL
              OR name ILIKE '%' || $1 || '%'
              OR description ILIKE '%' || $1 || '%'
+             OR city ILIKE '%' || $1 || '%'
+             OR registration_number ILIKE '%' || $1 || '%'
+           )
+           AND (
+             $2::text IS NULL
+             OR city ILIKE '%' || $2 || '%'
+             OR address ILIKE '%' || $2 || '%'
            )`,
-        [searchTerm]
+        [searchTerm, cityTerm]
     );
 
     return {
@@ -507,9 +680,11 @@ export async function getLabs({
 // Get a public laboratory profile
 export async function getLabById(labId) {
     const result = await pool.query(
-        `SELECT id, name, email, phone, description, approval_status
+        `SELECT id, name, registration_number, email, phone, description,
+                address, city, operating_hours, services, sample_collection_available,
+                approval_status, created_at, updated_at
          FROM labs
-         WHERE id = $1 AND approval_status = 'approved'`,
+         WHERE id = $1 AND LOWER(approval_status) = 'approved'`,
         [labId]
     );
 
@@ -801,13 +976,129 @@ export async function suspendLab({
         ...suspendedLab,
         suspensionReason: reason.trim(),
     };
+}
 
-    // Record the reason and administrator in the audit log
-    // when that table and service are implemented.
-    return {
-        ...result.rows[0],
-        suspensionReason: reason.trim(),
-    };
+// Permanently delete a laboratory (admin only)
+export async function deleteLab({ labId, deletedBy }) {
+    if (!deletedBy) {
+        throw createError("Administrator identity is required", 403);
+    }
+
+    if (!labId) {
+        throw createError("Laboratory ID is required", 400);
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.query("BEGIN");
+
+        const labCheck = await client.query(
+            `SELECT id, name, email, owner_id FROM labs WHERE id = $1`,
+            [labId]
+        );
+
+        if (labCheck.rows.length === 0) {
+            throw createError("Laboratory not found", 404);
+        }
+
+        const lab = labCheck.rows[0];
+
+        // 1. Delete payment_webhook_events associated with orders or subscriptions of this lab
+        await client.query(
+            `DELETE FROM payment_webhook_events
+             WHERE payment_id IN (
+                 SELECT id FROM payments
+                 WHERE order_id IN (SELECT id FROM orders WHERE lab_id = $1)
+                    OR subscription_id IN (SELECT id FROM subscriptions WHERE lab_id = $1)
+             )`,
+            [labId]
+        );
+
+        // 2. Delete payments associated with orders or subscriptions of this lab
+        await client.query(
+            `DELETE FROM payments
+             WHERE order_id IN (SELECT id FROM orders WHERE lab_id = $1)
+                OR subscription_id IN (SELECT id FROM subscriptions WHERE lab_id = $1)`,
+            [labId]
+        );
+
+        // 3. Delete report versions
+        await client.query(
+            `DELETE FROM report_versions
+             WHERE report_id IN (SELECT id FROM reports WHERE lab_id = $1)`,
+            [labId]
+        );
+
+        // 4. Delete reports
+        await client.query(
+            `DELETE FROM reports WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 5. Delete order items
+        await client.query(
+            `DELETE FROM order_items
+             WHERE order_id IN (SELECT id FROM orders WHERE lab_id = $1)`,
+            [labId]
+        );
+
+        // 6. Delete orders
+        await client.query(
+            `DELETE FROM orders WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 7. Delete subscriptions
+        await client.query(
+            `DELETE FROM subscriptions WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 8. Delete clinical calculations
+        await client.query(
+            `DELETE FROM clinical_calculations WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 9. Delete callbacks
+        await client.query(
+            `DELETE FROM callbacks WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 10. Delete lab_patient_refs
+        await client.query(
+            `DELETE FROM lab_patient_refs WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 11. Dissociate users referencing this lab
+        await client.query(
+            `UPDATE users
+             SET lab_id = NULL
+             WHERE lab_id = $1`,
+            [labId]
+        );
+
+        // 12. Delete the laboratory record itself
+        await client.query(
+            `DELETE FROM labs WHERE id = $1`,
+            [labId]
+        );
+
+        await client.query("COMMIT");
+
+        return {
+            id: lab.id,
+            name: lab.name,
+            message: `Laboratory "${lab.name}" and all associated records permanently deleted`,
+        };
+    } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+    } finally {
+        client.release();
+    }
 }
 
 // ============================================================================

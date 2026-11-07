@@ -2,8 +2,16 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
+import jwt from "jsonwebtoken";
 import { pool } from "../config/db.js";
-import { notifyReportPublished } from "./email.service.js";
+import { notifyReportPublished, sendEmail } from "./email.service.js";
+import {
+    createEmailOtp,
+    invalidatePreviousOtps,
+    findLatestEmailOtp,
+    incrementOtpAttempts,
+    markOtpUsed,
+} from "../models/session.model.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,6 +20,14 @@ const STORAGE_DIR = path.resolve(__dirname, "../../storage/reports");
 // Ensure storage directory exists
 if (!fs.existsSync(STORAGE_DIR)) {
     fs.mkdirSync(STORAGE_DIR, { recursive: true });
+}
+
+function getAccessSecret() {
+    const secret = process.env.JWT_ACCESS_SECRET || process.env.JWT_SECRET;
+    if (!secret) {
+        throw new Error("JWT_ACCESS_SECRET is not configured");
+    }
+    return secret;
 }
 
 function createError(message, statusCode) {
@@ -540,14 +556,24 @@ export async function getReportFile({ reportId, user }) {
     let isAuthorizedPatient = false;
 
     if (user.role === "patient") {
-        // Check patient record association with this user (by email or phone)
-        const patCheck = await pool.query(
-            `SELECT p.id FROM patients p
-             JOIN users u ON (u.email = p.email OR u.phone = p.phone)
-             WHERE p.id = $1 AND u.id = $2`,
-            [report.patient_id, user.id]
-        );
-        isAuthorizedPatient = patCheck.rows.length > 0;
+        if (user.patientId && String(report.patient_id) === String(user.patientId)) {
+            isAuthorizedPatient = true;
+        } else if (user.email) {
+            const patCheck = await pool.query(
+                `SELECT id FROM patients WHERE id = $1 AND LOWER(email) = LOWER($2)`,
+                [report.patient_id, user.email]
+            );
+            isAuthorizedPatient = patCheck.rows.length > 0;
+        } else {
+            // Check patient record association with this user (by email or phone)
+            const patCheck = await pool.query(
+                `SELECT p.id FROM patients p
+                 JOIN users u ON (u.email = p.email OR u.phone = p.phone)
+                 WHERE p.id = $1 AND u.id = $2`,
+                [report.patient_id, user.id]
+            );
+            isAuthorizedPatient = patCheck.rows.length > 0;
+        }
     }
 
     if (!isOwnerLab && !isAdmin && !isAuthorizedPatient) {
@@ -555,7 +581,7 @@ export async function getReportFile({ reportId, user }) {
     }
 
     // Only lab or admin can download unpublished draft reports
-    if (!isOwnerLab && !isAdmin && report.status === "draft") {
+    if (!isOwnerLab && !isAdmin && (report.status === "draft" || report.status === "voided")) {
         throw createError("Report is still under preparation and has not been published yet", 403);
     }
 
@@ -569,5 +595,179 @@ export async function getReportFile({ reportId, user }) {
         absolutePath,
         filename: report.original_filename || report.filename || "medical_report.pdf",
         mimeType: report.mime_type || "application/pdf",
+    };
+}
+
+// Request passwordless OTP for patient report access (no user account required)
+export async function requestPatientReportOtp({ email }) {
+    if (!email || typeof email !== "string") {
+        throw createError("Patient registered email address is required", 400);
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(normalizedEmail)) {
+        throw createError("Invalid email address format", 400);
+    }
+
+    // Verify patient exists in the patients table
+    const patientCheck = await pool.query(
+        `SELECT id, full_name, email FROM patients WHERE LOWER(email) = $1 LIMIT 1`,
+        [normalizedEmail]
+    );
+
+    if (patientCheck.rows.length === 0) {
+        throw createError(
+            "No patient record found with this email address. Please make sure you are using the email provided to your diagnostic laboratory.",
+            404
+        );
+    }
+
+    // Generate cryptographically secure 6-digit OTP
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const otpHash = crypto.createHash("sha256").update(otp).digest("hex");
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    // Invalidate any previous unused OTPs for patient report access for this email
+    await invalidatePreviousOtps({
+        email: normalizedEmail,
+        userId: null,
+        purpose: "patient_report_access",
+    });
+
+    // Store in email_otps table with user_id = null and purpose = 'patient_report_access'
+    await createEmailOtp({
+        userId: null,
+        email: normalizedEmail,
+        otpHash,
+        purpose: "patient_report_access",
+        expiresAt,
+    });
+
+    if (process.env.NODE_ENV !== "production") {
+        console.log(`\n🔑 [DEV ONLY OTP] Patient Report Access OTP for ${normalizedEmail}: >>> ${otp} <<<\n`);
+    }
+
+    // Send email to patient via existing sendEmail service
+    await sendEmail({
+        to: normalizedEmail,
+        subject: "Your PublicLab Medical Report Access Code",
+        text: `Hello,\n\nYour 6-digit verification code to access your medical reports is: ${otp}\n\nThis verification code will expire in 10 minutes.\n\nPublicLab Healthcare Team`,
+        html: `
+            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 540px; margin: 0 auto; padding: 24px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px;">
+                <h2 style="color: #0f766e; margin-top: 0;">PublicLab Medical Reports</h2>
+                <p style="color: #334155; font-size: 15px; line-height: 1.6;">Hello,</p>
+                <p style="color: #334155; font-size: 15px; line-height: 1.6;">You requested access to your diagnostic medical reports. Use the 6-digit verification code below to securely view and download your reports:</p>
+                <div style="background-color: #f0fdfa; border: 1px dashed #0d9488; padding: 20px; text-align: center; border-radius: 12px; margin: 24px 0;">
+                    <span style="font-size: 36px; font-weight: 700; letter-spacing: 6px; color: #0f766e; font-family: monospace;">${otp}</span>
+                </div>
+                <p style="color: #64748b; font-size: 13px;">This single-use code expires in 10 minutes. For your medical privacy, do not share this code.</p>
+                <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 24px 0;" />
+                <p style="color: #94a3b8; font-size: 12px;">If you did not request this verification code, please disregard this message.</p>
+            </div>
+        `,
+    });
+
+    const isNonProd = process.env.NODE_ENV !== "production";
+    return {
+        success: true,
+        message: "A 6-digit verification code has been dispatched to your email address.",
+        ...(isNonProd ? { devOtp: otp } : {}),
+    };
+}
+
+// Verify patient report OTP and retrieve reports
+export async function verifyPatientReportOtp({ email, otp }) {
+    if (!email || !otp) {
+        throw createError("Email and verification code are required", 400);
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const inputOtp = String(otp).trim();
+
+    if (!/^\d{6}$/.test(inputOtp)) {
+        throw createError("Verification code must be 6 digits", 400);
+    }
+
+    const latestOtp = await findLatestEmailOtp({
+        email: normalizedEmail,
+        purpose: "patient_report_access",
+    });
+
+    if (!latestOtp) {
+        throw createError("No pending verification request found. Please request a new code.", 400);
+    }
+
+    if (new Date(latestOtp.expires_at) < new Date()) {
+        throw createError("The verification code has expired. Please request a new code.", 400);
+    }
+
+    if (latestOtp.attempts >= 5) {
+        throw createError("Maximum verification attempts exceeded. Please request a new code.", 400);
+    }
+
+    const inputHash = crypto.createHash("sha256").update(inputOtp).digest("hex");
+    if (latestOtp.otp_hash !== inputHash) {
+        await incrementOtpAttempts(latestOtp.id);
+        throw createError("Invalid verification code. Please check and try again.", 400);
+    }
+
+    // Mark OTP as used
+    await markOtpUsed(latestOtp.id);
+
+    // Fetch patient record
+    const patientResult = await pool.query(
+        `SELECT id, full_name, email, phone, date_of_birth, sex
+         FROM patients
+         WHERE LOWER(email) = $1
+         ORDER BY id DESC
+         LIMIT 1`,
+        [normalizedEmail]
+    );
+
+    const patient = patientResult.rows[0];
+    if (!patient) {
+        throw createError("Patient record not found", 404);
+    }
+
+    // Fetch published/corrected reports for this patient's email
+    const reportsResult = await pool.query(
+        `SELECT r.id, r.order_id, r.patient_id, r.lab_id, r.storage_provider,
+                r.original_filename, r.filename, r.mime_type, r.file_size_bytes,
+                COALESCE(r.status, r.report_status) AS status,
+                r.published_at, r.created_at,
+                l.name AS lab_name,
+                p.full_name AS patient_name
+         FROM reports r
+         JOIN patients p ON p.id = r.patient_id
+         JOIN labs l ON l.id = r.lab_id
+         WHERE LOWER(p.email) = $1
+           AND (r.status IN ('published', 'corrected') OR r.report_status IN ('published', 'corrected'))
+         ORDER BY r.created_at DESC, r.id DESC`,
+        [normalizedEmail]
+    );
+
+    // Generate signed JWT for report download authorization (valid for 2 hours)
+    const accessToken = jwt.sign(
+        {
+            sub: String(patient.id),
+            patientId: patient.id,
+            email: normalizedEmail,
+            role: "patient",
+            type: "patient_report_access",
+        },
+        getAccessSecret(),
+        { expiresIn: "2h" }
+    );
+
+    return {
+        accessToken,
+        patient: {
+            id: patient.id,
+            fullName: patient.full_name,
+            email: patient.email,
+            phone: patient.phone,
+        },
+        reports: reportsResult.rows,
     };
 }
